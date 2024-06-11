@@ -3,7 +3,10 @@ package org.omnisearch.cs;
 import org.openqa.selenium.*;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.WebDriverWait;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -30,7 +33,19 @@ public class DataCrawler {
 
         try {
             // Step 1: Navigate to the company's social media /about/ page
-            driver.get(socialMediaLink + "/about/");
+            driver.get(socialMediaLink + "about/");
+            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+            // Store the current URL
+            String initialUrl = driver.getCurrentUrl();
+            // Wait until the URL changes
+            wait.until(ExpectedConditions.not(ExpectedConditions.urlToBe(initialUrl)));
+            // Store the new URL
+            String finalUrl = driver.getCurrentUrl();
+            // Wait until the URL no longer changes
+            while (!finalUrl.equals(driver.getCurrentUrl())) {
+                wait.until(ExpectedConditions.not(ExpectedConditions.urlToBe(finalUrl)));
+                finalUrl = driver.getCurrentUrl();
+            }
             Thread.sleep(3000);
 
             // Step 2: Extract website URL and phone number

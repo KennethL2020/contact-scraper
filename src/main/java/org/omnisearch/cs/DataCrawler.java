@@ -31,17 +31,21 @@ public class DataCrawler {
         ChromeOptions options = new ChromeOptions();
         //options.addArguments("--headless");
         options.addArguments("--remote-allow-origins=*");
+        options.addArguments("window-size=1920,1080");
         WebDriver driver = new ChromeDriver(options);
 
-        String companyName = "EDR AUTO HUB";
-        String socialMediaLink = "https://www.linkedin.com/company/edr-auto-hub/";
+        String companyName = "Protect Wraps";
+        String socialMediaLink = "https://www.linkedin.com/company/protect-wraps/";
         String industry = "Vehicle Repair and Maintenance";
-        String location = "Wetherill Park, New South Wales";
+        String location = "Geebung, Queensland";
 
         String websiteUrl = "";
         String phoneNumber = "";
         String addresses = "";
+        String emailAddress = "";
 
+        String phonesFromWebsite = null;
+        String emailsFromWebsite = null;
         try {
             // Step 1: Navigate to the company's social media /about/ page
             driver.get(socialMediaLink + "about/");
@@ -77,7 +81,6 @@ public class DataCrawler {
                         WebElement websiteElement = driver.findElement(By.xpath("(//a[@jsname][@href][br][h3])[1]"));
                         websiteUrl = websiteElement.getAttribute("href");
                     } catch (Exception exx) {
-                        // No website found
                     }
                 }
             }
@@ -98,25 +101,29 @@ public class DataCrawler {
                     WebElement addressElement = locationsHeader.findElement(By.xpath(".//following-sibling::p"));
                     addresses = addressElement.getText();
                 } else {
-                    List<WebElement> locationElements = driver.findElements(By.xpath("//g[@aria-label[contains(., 'CompanyLocations')]]"));
+                    List<WebElement> locationElements = driver.findElements(By.xpath("//*[contains(@aria-label, 'CompanyLocations') and @role='region']"));
                     for (WebElement locationElement : locationElements) {
-                        locationElement.click();
-                        Thread.sleep(2000);
-                        List<WebElement> addressElements = driver.findElements(By.xpath("//div[contains(@class, 'org-location-card')]//p"));
-                        for (WebElement addressElement : addressElements) {
-                            addresses += addressElement.getText() + "; ";
+                        List<WebElement> pathElements = locationElement.findElements(By.tagName("path"));
+                        for (WebElement pathElement : pathElements) {
+                            if (pathElement.getAttribute("aria-label").contains("CompanyLocations")) {
+                                pathElement.click();
+                                Thread.sleep(2000);
+                                List<WebElement> addressElements = driver.findElements(By.xpath("//div[contains(@class, 'org-location-card')]//p"));
+                                for (WebElement addressElement : addressElements) {
+                                    addresses += addressElement.getText() + "; ";
+                                }
+                                WebElement closeButton = driver.findElement(By.xpath("//button[@aria-label='Close the selected group of locations']"));
+                                closeButton.click();
+                            }
                         }
-                        WebElement closeButton = driver.findElement(By.xpath("//button[@aria-label='Close the selected group of locations']"));
-                        closeButton.click();
                     }
                 }
             } catch (Exception e) {
-                // Handle any exceptions related to extracting addresses
             }
 
             // Step 4: Extract emails and phone numbers from website
-            String emailsFromWebsite = "";
-            String phonesFromWebsite = "";
+            emailsFromWebsite = "";
+            phonesFromWebsite = "";
             if (!websiteUrl.isEmpty()) {
                 googleSearch(driver, "site:" + trimToDomain(websiteUrl), originalTabHandle);
                 emailsFromWebsite = extractEmails(driver.getPageSource());
@@ -146,15 +153,15 @@ public class DataCrawler {
             emailsFromWebsite += extractEmails(driver.getPageSource()) + "; ";
             phonesFromWebsite += extractPhoneNumber(driver.getPageSource()) + "; ";
 
-            System.out.println("Website URL: " + websiteUrl);
-            System.out.println("Phone Number: " + phoneNumber);
-            System.out.println("Addresses: " + addresses);
-            System.out.println("Emails from Website: " + emailsFromWebsite);
-            System.out.println("Phones from Website: " + phonesFromWebsite);
-
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
+            phoneNumber += phonesFromWebsite;
+            emailAddress += emailsFromWebsite;
+            System.out.println("Website URL: " + websiteUrl);
+            System.out.println("Phone Numbers: " + phoneNumber);
+            System.out.println("Addresses: " + addresses);
+            System.out.println("Email Addresses: " + emailAddress);
             driver.quit();
         }
     }
@@ -175,8 +182,7 @@ public class DataCrawler {
     }
 
     private static String extractEmails(String text) {
-        Pattern emailPattern = Pattern.compile("\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.(?!jpg|jpeg|png|gif|pdf|doc|" +
-                "docx|xls|xlsx|zip|rar|mp3|mp4|avi|mkv)[A-Za-z]{2,}\\b");
+        Pattern emailPattern = Pattern.compile("\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.(?!jpg|jpeg|png|gif|pdf|doc|docx|xls|xlsx|zip|rar|mp3|mp4|avi|mkv)[A-Za-z]{2,}\\b");
         Matcher matcher = emailPattern.matcher(text);
         StringBuilder emails = new StringBuilder();
         while (matcher.find()) {
@@ -186,7 +192,7 @@ public class DataCrawler {
     }
 
     private static String extractPhoneNumber(String text) {
-        Pattern phonePattern = Pattern.compile("\\b(\\+61|0)[\\s-]?(\\d{1,4})[\\s-]?(\\d{2,4})[\\s-]?(\\d{2,4})[\\s-]?(\\d{0,4})\\b");
+        Pattern phonePattern = Pattern.compile("\\b(\\+61|0)?[\\s-]?(\\d{1,4})[\\s-]?(\\d{2,4})[\\s-]?(\\d{2,4})[\\s-]?(\\d{0,4})\\b");
         Matcher matcher = phonePattern.matcher(text);
         StringBuilder phones = new StringBuilder();
         while (matcher.find()) {
@@ -252,9 +258,13 @@ public class DataCrawler {
 
         // Check if the total number of digits is between 10 and 15
         int length = digitsOnly.length();
-        if (digitsOnly.startsWith("0") || digitsOnly.startsWith("61"))
-            return length >= 10 && length <= 15;
+        if (digitsOnly.startsWith("0"))
+            return length == 10;
+        else if (digitsOnly.startsWith("61"))
+            return length >= 10 && length <= 11;
+        else if (digitsOnly.startsWith("13"))
+            return length == 10 || length == 6;
         else
-            return length >= 8 && length <= 13;
+            return length == 8;
     }
 }

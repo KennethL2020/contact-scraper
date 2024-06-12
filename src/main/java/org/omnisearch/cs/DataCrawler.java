@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class DataCrawler {
     public static void main(String[] args) {
@@ -103,8 +104,17 @@ public class DataCrawler {
                 } else {
                     List<WebElement> locationElements = driver.findElements(By.xpath("//*[contains(@aria-label, 'CompanyLocations') and @role='region']"));
                     for (WebElement locationElement : locationElements) {
+                        int index = 0;
                         List<WebElement> pathElements = locationElement.findElements(By.tagName("path"));
+                        List<String> ariaLabels = pathElements.stream().map(element -> element.getAttribute("aria-label")).collect(Collectors.toList());
                         for (WebElement pathElement : pathElements) {
+                            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+                            if (index > 0) {
+                                wait.until(ExpectedConditions.stalenessOf(pathElement));
+                                String xpath = String.format("//*[contains(@aria-label, '%s')]", ariaLabels.get(index));
+                                wait.until(ExpectedConditions.presenceOfElementLocated(By.xpath(xpath)));
+                                pathElement = driver.findElement(By.xpath(xpath));
+                            }
                             if (pathElement.getAttribute("aria-label").contains("CompanyLocations")) {
                                 pathElement.click();
                                 Thread.sleep(2000);
@@ -112,13 +122,18 @@ public class DataCrawler {
                                 for (WebElement addressElement : addressElements) {
                                     addresses += addressElement.getText() + "; ";
                                 }
-                                WebElement closeButton = driver.findElement(By.xpath("//button[@aria-label='Close the selected group of locations']"));
+                                WebElement closeButton = wait.until(ExpectedConditions.elementToBeClickable(By.xpath("//button[@aria-label='Close the selected group of locations']")));
+                                ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView(true);", locationsHeader);
+                                ((JavascriptExecutor) driver).executeScript("window.scrollBy(0, -150)");
+                                Thread.sleep(500);
                                 closeButton.click();
                             }
+                            index ++;
                         }
                     }
                 }
             } catch (Exception e) {
+                e.printStackTrace();
             }
 
             // Step 4: Extract emails and phone numbers from website
@@ -266,5 +281,26 @@ public class DataCrawler {
             return length == 10 || length == 6;
         else
             return length == 8;
+    }
+
+    public static String generateXPATH(WebElement childElement, String current) {
+        String childTag = childElement.getTagName();
+        if(childTag.equals("html")) {
+            return "/html[1]"+current;
+        }
+        WebElement parentElement = childElement.findElement(By.xpath(".."));
+        List<WebElement> childrenElements = parentElement.findElements(By.xpath("*"));
+        int count = 0;
+        for(int i=0;i<childrenElements.size(); i++) {
+            WebElement childrenElement = childrenElements.get(i);
+            String childrenElementTag = childrenElement.getTagName();
+            if(childTag.equals(childrenElementTag)) {
+                count++;
+            }
+            if(childElement.equals(childrenElement)) {
+                return generateXPATH(parentElement, "/" + childTag + "[" + count + "]"+current);
+            }
+        }
+        return null;
     }
 }

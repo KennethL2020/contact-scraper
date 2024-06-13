@@ -3,9 +3,8 @@ package org.omnisearch.cs;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.opencsv.CSVReader;
+import com.opencsv.CSVWriter;
 import com.opencsv.exceptions.CsvValidationException;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
 
 import org.omnisearch.cs.dto.Company;
 import org.openqa.selenium.*;
@@ -14,30 +13,36 @@ import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
+import java.io.File;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class DataCrawler {
+    private static final String[] HEADERS = { "Name", "Link", "Industry", "Location", "Followers", "Phone", "Email", "Website", "Address" };
+    private static final String FILE_PATH = "company_log.csv";
     public static void main(String[] args) {
         String filePath = "C:\\Users\\kenne\\OneDrive\\Desktop\\shared\\Projects\\Job Agent\\Iteration 2\\potential partners\\priority\\automotive_repair.csv";
-        List<Company> companies = readCompaniesFromCsv(filePath);
         System.setProperty("webdriver.chrome.driver", "C:\\Users\\kenne\\OneDrive\\Desktop\\shared\\Projects\\Job Agent" +
                 "\\Iteration 2\\potential partners\\contact-scraper\\chromedriver-win64\\chromedriver-win64\\chromedriver.exe");
         String cookiesJSON = "C:\\Users\\kenne\\OneDrive\\Desktop\\shared\\Projects\\Job Agent\\Iteration 2\\potential partners\\contact-scraper\\src\\main\\resources\\exported-cookies.json";
 
+        List<Company> companies = readCompaniesFromCsv(filePath);
         ChromeOptions options = new ChromeOptions();
         //options.addArguments("--headless");
         options.addArguments("--remote-allow-origins=*");
-        options.addArguments("window-size=1920,1080");
+        options.addArguments("--start-maximized");
         WebDriver driver = new ChromeDriver(options);
+        driver.manage().timeouts().pageLoadTimeout(20, TimeUnit.SECONDS); // 10 seconds timeout
 
         for (Company company : companies) {
             String companyName = company.getName();
@@ -50,13 +55,25 @@ public class DataCrawler {
             String addresses = "";
             String emailAddresses = "";
 
-            String phonesFromWebsite = null;
-            String emailsFromWebsite = null;
+            String phonesFromWebsite = "";
+            String emailsFromWebsite = "";
             try {
                 // Step 1: Navigate to the company's social media /about/ page
-                driver.get(socialMediaLink + "about/");
-                importCookies(driver, cookiesJSON);
-                driver.get(socialMediaLink + "about/");
+                try {
+                    driver.get(socialMediaLink + "about/");
+                } catch (TimeoutException e){
+                    e.printStackTrace();
+                }
+                try {
+                    importCookies(driver, cookiesJSON);
+                } catch (Exception e){
+                    e.printStackTrace();
+                }
+                try {
+                    driver.get(socialMediaLink + "about/");
+                } catch (TimeoutException e){
+                    e.printStackTrace();
+                }
 //            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
 //            // Store the current URL
 //            String initialUrl = driver.getCurrentUrl();
@@ -70,7 +87,11 @@ public class DataCrawler {
 //                finalUrl = driver.getCurrentUrl();
 //            }
                 Thread.sleep(3000);
-                scrollToBottom(driver);
+                try {
+                    scrollToBottom(driver);
+                } catch (TimeoutException e){
+                    e.printStackTrace();
+                }
                 String originalTabHandle = driver.getWindowHandle();
 
                 // Step 2: Extract website URL and phone number
@@ -78,7 +99,9 @@ public class DataCrawler {
                     WebElement websiteElement = driver.findElement(By.xpath("//dt[contains(@class, 'mb1 text-heading-medium') and text()='Website']/following-sibling::dd//a"));
                     websiteUrl = websiteElement.getAttribute("href");
                 } catch (Exception e) {
-                    googleSearch(driver, companyName + " " + industry + " " + location, originalTabHandle);
+                    googleSearch(driver, companyName + " " + industry + " " + location);
+                    phoneNumbers += extractPhoneNumber(driver);
+                    addresses += findAddressFromGoogleSearch(driver);
                     try {
                         WebElement websiteButton = driver.findElement(By.xpath("//a[contains(@class, 'ab_button')]/div[text()='Website']"));
                         websiteUrl = websiteButton.getAttribute("href");
@@ -87,17 +110,23 @@ public class DataCrawler {
                             WebElement websiteElement = driver.findElement(By.xpath("(//a[@jsname][@href][br][h3])[1]"));
                             websiteUrl = websiteElement.getAttribute("href");
                         } catch (Exception exx) {
+                            ErrorLogger.logError(exx);
+                            e.printStackTrace();
                         }
                     }
+                    driver.close();
+                    driver.switchTo().window(originalTabHandle);
                 }
 
                 try {
                     WebElement phoneElement = driver.findElement(By.xpath("//dt[contains(@class, 'mb1 text-heading-medium') and text()='Phone']/following-sibling::dd//span"));
-                    phoneNumbers = phoneElement.getText();
+                    phoneNumbers += phoneElement.getText() + "; ";
                 } catch (Exception e) {
-                    googleSearch(driver, companyName + " " + industry + " " + location, originalTabHandle);
-                    String pageSource = driver.getPageSource();
-                    phoneNumbers = extractPhoneNumber(pageSource);
+                    googleSearch(driver, companyName + " " + industry + " " + location);
+                    addresses += findAddressFromGoogleSearch(driver);
+                    phoneNumbers += extractPhoneNumber(driver);
+                    driver.close();
+                    driver.switchTo().window(originalTabHandle);
                 }
 
                 // Step 3: Extract address information
@@ -105,7 +134,7 @@ public class DataCrawler {
                     WebElement locationsHeader = driver.findElement(By.xpath("//h3[contains(@class, 'text-heading-xlarge')]"));
                     if (locationsHeader.getText().contains("(1)")) {
                         WebElement addressElement = locationsHeader.findElement(By.xpath(".//following-sibling::p"));
-                        addresses = addressElement.getText();
+                        addresses += addressElement.getText() + "; ";
                     } else {
                         List<WebElement> locationElements = driver.findElements(By.xpath("//*[contains(@aria-label, 'CompanyLocations') and @role='region']"));
                         for (WebElement locationElement : locationElements) {
@@ -138,47 +167,98 @@ public class DataCrawler {
                         }
                     }
                 } catch (Exception e) {
+                    ErrorLogger.logError(e);
+                    e.printStackTrace();
+                }
+                try {
+                    // Step 4: Extract emails and phone numbers from website
+                    emailsFromWebsite = "";
+                    phonesFromWebsite = "";
+                    if (!websiteUrl.isEmpty()) {
+                        googleSearch(driver, "site:" + trimToDomain(websiteUrl));
+                        emailsFromWebsite += extractEmails(driver.getPageSource());
+                        phonesFromWebsite += extractPhoneNumber(driver);
+                        driver.close();
+                        driver.switchTo().window(originalTabHandle);
+                        try {
+                            driver.get(websiteUrl);
+                        } catch (TimeoutException e){
+                            e.printStackTrace();
+                        }
+                        Thread.sleep(3000);
+                        try {
+                            scrollToBottom(driver);
+                        } catch (TimeoutException e){
+                            e.printStackTrace();
+                        }
+                        Thread.sleep(2000);
+                        String pageSource = driver.getPageSource();
+                        emailsFromWebsite += extractEmails(pageSource);
+                        phonesFromWebsite += extractPhoneNumber(driver);
+                        List<WebElement> websiteLinks = driver.findElements(By.xpath("//a[contains(@href, websiteUrl)]"));
+                        String companyWebsiteTabHandle = driver.getWindowHandle();
+                        int i = 0;
+                        for (WebElement link : websiteLinks) {
+                            String linkUrl = link.getAttribute("href");
+                            if (linkUrl == null || (i > 3 && !linkUrl.toLowerCase().contains("contact")))
+                                continue;
+                            if ((trimToDomain(linkUrl).contains(trimToDomain(websiteUrl)) ||
+                                    trimToDomain(websiteUrl).contains(trimToDomain(linkUrl)) ||
+                                    linkUrl.contains(websiteUrl) || linkUrl.startsWith("/")) &&
+                                    !linkUrl.contains("/#")) {
+                                if (linkUrl.startsWith("/")) {
+                                    URL mergedURL = new URL(new URL(websiteUrl), linkUrl);
+                                    linkUrl = mergedURL.toString();
+                                }
+                                ((JavascriptExecutor) driver).executeScript("window.open('');");
+                                Set<String> handles = driver.getWindowHandles();
+                                String newTabHandle = handles.toArray()[handles.size() - 1].toString();
+                                driver.switchTo().window(newTabHandle);
+                                try {
+                                    driver.get(linkUrl);
+                                } catch (TimeoutException e){
+                                    e.printStackTrace();
+                                }
+                                Thread.sleep(2000);
+                                try {
+                                    scrollToBottom(driver);
+                                } catch (TimeoutException e){
+                                    e.printStackTrace();
+                                }
+                                Thread.sleep(2000);
+                                pageSource = driver.getPageSource();
+                                emailsFromWebsite += extractEmails(pageSource);
+                                phonesFromWebsite += extractPhoneNumber(driver);
+                                driver.close();
+                                driver.switchTo().window(companyWebsiteTabHandle);
+                                i ++;
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    ErrorLogger.logError(e);
+                    e.printStackTrace();
+                }
+                try {
+                    googleSearch(driver, companyName + " " + industry + " " + location);
+                    addresses += findAddressFromGoogleSearch(driver);
+                    emailsFromWebsite += extractEmails(driver.getPageSource());
+                    phonesFromWebsite += extractPhoneNumber(driver);
+                    driver.close();
+                    driver.switchTo().window(originalTabHandle);
+                } catch (Exception e) {
+                    ErrorLogger.logError(e);
                     e.printStackTrace();
                 }
 
-                // Step 4: Extract emails and phone numbers from website
-                emailsFromWebsite = "";
-                phonesFromWebsite = "";
-                if (!websiteUrl.isEmpty()) {
-                    googleSearch(driver, "site:" + trimToDomain(websiteUrl), originalTabHandle);
-                    emailsFromWebsite = extractEmails(driver.getPageSource());
-                    phonesFromWebsite = extractPhoneNumber(driver.getPageSource());
-
-                    driver.get(websiteUrl);
-                    Thread.sleep(3000);
-                    scrollToBottom(driver);
-                    String pageSource = driver.getPageSource();
-                    emailsFromWebsite += extractEmails(pageSource) + "; ";
-                    phonesFromWebsite += extractPhoneNumber(pageSource) + "; ";
-                    List<WebElement> websiteLinks = driver.findElements(By.xpath("//a[contains(@href, websiteUrl)]"));
-                    for (WebElement link : websiteLinks) {
-                        String linkUrl = link.getAttribute("href");
-                        if (linkUrl.contains(websiteUrl)) {
-                            driver.get(linkUrl);
-                            Thread.sleep(2000);
-                            scrollToBottom(driver);
-                            pageSource = driver.getPageSource();
-                            emailsFromWebsite += extractEmails(pageSource) + "; ";
-                            phonesFromWebsite += extractPhoneNumber(pageSource) + "; ";
-                        }
-                    }
-                }
-                googleSearch(driver, companyName + " " + industry + " " + location, originalTabHandle);
-                emailsFromWebsite += extractEmails(driver.getPageSource()) + "; ";
-                phonesFromWebsite += extractPhoneNumber(driver.getPageSource()) + "; ";
-
             } catch (Exception e) {
+                ErrorLogger.logError(e);
                 e.printStackTrace();
             } finally {
                 phoneNumbers += phonesFromWebsite;
                 emailAddresses += emailsFromWebsite;
                 company.setEmailAddresses(removeDuplicates(emailAddresses));
-                company.setPhoneNumbers(removeDuplicates(phoneNumbers));
+                company.setPhoneNumbers(removeInvalidNumbersAndFormat(removeDuplicates(phoneNumbers)));
                 company.setWebsites(removeDuplicates(websiteUrl));
                 company.setAddresses(removeDuplicates(addresses));
                 System.out.println(String.format("\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\""
@@ -186,12 +266,13 @@ public class DataCrawler {
                         , company.getLocation(), company.getFollowers()
                         , company.getPhoneNumbers(), company.getEmailAddresses()
                         , company.getWebsites(), company.getAddresses()));
+                logCompany(company);
             }
         }
         driver.quit();
     }
 
-    private static void googleSearch(WebDriver driver, String query, String originalTabHandle) throws InterruptedException {
+    private static void googleSearch(WebDriver driver, String query) throws InterruptedException {
         ((JavascriptExecutor) driver).executeScript("window.open('');");
         Set<String> handles = driver.getWindowHandles();
         String newTabHandle = handles.toArray()[handles.size() - 1].toString();
@@ -201,9 +282,27 @@ public class DataCrawler {
         searchBox.sendKeys(query);
         searchBox.sendKeys(Keys.RETURN);
         Thread.sleep(3000);
-        scrollToBottom(driver);
-        driver.close();
-        driver.switchTo().window(originalTabHandle);
+        try {
+            scrollToBottom(driver);
+        } catch (TimeoutException e){
+            e.printStackTrace();
+        }
+    }
+
+    private static String findAddressFromGoogleSearch(WebDriver driver) {
+        try {
+            // Locate the span element containing an a element with the text content "Address"
+            WebElement spanWithAddressLink = driver.findElement(By.xpath("//span[a[text()='Address']]"));
+
+            // Locate the next span element under this span element
+            WebElement addressSpan = spanWithAddressLink.findElement(By.xpath("./following-sibling::span"));
+
+            // Extract and return the text content of the found span element
+            return addressSpan.getText() + "; ";
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "";
+        }
     }
 
     private static String extractEmails(String text) {
@@ -211,18 +310,26 @@ public class DataCrawler {
         Matcher matcher = emailPattern.matcher(text);
         StringBuilder emails = new StringBuilder();
         while (matcher.find()) {
-            emails.append(matcher.group()).append("; ");
+            String match = matcher.group();
+            if (!match.contains("@sentry-next.wixpress.com") && !match.contains("@sentry.io") && !match.contains("@sentry.wixpress.com"))
+                emails.append(match).append("; ");
         }
         return emails.toString();
     }
 
-    private static String extractPhoneNumber(String text) {
-        Pattern phonePattern = Pattern.compile("\\b(\\+61|0)?[\\s-]?(\\d{1,4})[\\s-]?(\\d{2,4})[\\s-]?(\\d{2,4})[\\s-]?(\\d{0,4})\\b");
-        Matcher matcher = phonePattern.matcher(text);
+    private static String extractPhoneNumber(WebDriver driver) {
+        return extractVisiblePhoneNumber(driver);
+    }
+
+    private static String extractVisiblePhoneNumber(WebDriver driver) {
+        // Define the regex pattern for phone numbers
+        String regex = "\\b(\\+61|0)?[\\s-]?(\\d{1,4})[\\s-]?(\\d{2,4})[\\s-]?(\\d{2,4})[\\s-]?(\\d{0,4})\\b";
+        Pattern pattern = Pattern.compile(regex);
+        Matcher matcher = pattern.matcher(driver.getPageSource());
         StringBuilder phones = new StringBuilder();
         while (matcher.find()) {
             String match = matcher.group();
-            if (isValidLength(match) && !isDate(match))
+            if (isValidLength(match) && !isDate(match) && isElementVisible(driver, match))
                 phones.append(match).append("; ");
         }
         return phones.toString();
@@ -245,6 +352,7 @@ public class DataCrawler {
                 driver.manage().addCookie(cookie);
             }
         } catch (Exception e) {
+            ErrorLogger.logError(e);
             e.printStackTrace();
         }
     }
@@ -280,17 +388,37 @@ public class DataCrawler {
     private static boolean isValidLength(String phoneNumber) {
         // Remove all non-digit characters
         String digitsOnly = phoneNumber.replaceAll("[^\\d]", "");
-
         // Check if the total number of digits is between 10 and 15
         int length = digitsOnly.length();
         if (digitsOnly.startsWith("0"))
             return length == 10;
-        else if (digitsOnly.startsWith("61"))
-            return length >= 10 && length <= 11;
         else if (digitsOnly.startsWith("13"))
             return length == 10 || length == 6;
         else
-            return length == 8;
+            return length >= 8 && length <= 11;
+    }
+
+    private static boolean isElementVisible(WebDriver driver, String s){
+        // Find all elements that contain the given string
+        List<WebElement> elements = driver.findElements(By.xpath("//*[contains(text(), '" + s + "')]"));
+
+        // Check if any of the elements are visible
+        for (WebElement element : elements) {
+            if (element.isDisplayed()) {
+                return true;
+            }
+        }
+
+        elements = driver.findElements(By.xpath("//*[text()[contains(.,'" + s + "')]]"));
+
+        // Check if any of the elements are visible
+        for (WebElement element : elements) {
+            if (element.isDisplayed()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public static boolean isDate(String text) {
@@ -337,6 +465,26 @@ public class DataCrawler {
         return result.toString();
     }
 
+    public static String removeInvalidNumbersAndFormat(String input) {
+        // Split the input string by semicolon
+        String[] substrings = input.split(";");
+
+        // StringBuilder to build the result
+        StringBuilder result = new StringBuilder();
+
+        for (String substring : substrings) {
+
+            if (result.length() > 0) {
+                result.append(";");
+            }
+
+            if (AustralianPhoneNumberValidator.isValidAustralianPhoneNumber(substring.replaceAll("[^\\d]", "")))
+                result.append(substring.replaceAll("[^\\d]", ""));
+        }
+
+        return result.toString();
+    }
+
     private static String normalize(String str) {
         // Remove all spaces and punctuations, and convert to lowercase
         return str.replaceAll("[\\s\\p{Punct}]", "").toLowerCase();
@@ -358,9 +506,36 @@ public class DataCrawler {
                 companies.add(company);
             }
         } catch (IOException | CsvValidationException e) {
+            ErrorLogger.logError(e);
             e.printStackTrace();
         }
         return companies;
+    }
+
+    public static void logCompany(Company company) {
+        boolean fileExists = new File(FILE_PATH).exists();
+        try (CSVWriter writer = new CSVWriter(new FileWriter(FILE_PATH, true))) {
+            // Write header if file does not exist
+            if (!fileExists) {
+                writer.writeNext(HEADERS);
+            }
+            // Write company details
+            String[] details = {
+                    company.getName(),
+                    company.getLink(),
+                    company.getIndustry(),
+                    company.getLocation(),
+                    String.valueOf(company.getFollowers()),
+                    company.getPhoneNumbers(),
+                    company.getEmailAddresses(),
+                    company.getWebsites(),
+                    company.getAddresses()
+            };
+            writer.writeNext(details);
+        } catch (IOException e) {
+            ErrorLogger.logError(e);
+            e.printStackTrace();
+        }
     }
 
 }

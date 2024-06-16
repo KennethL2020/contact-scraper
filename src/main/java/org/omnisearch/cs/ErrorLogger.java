@@ -14,8 +14,11 @@ public class ErrorLogger {
     private static final String ERROR_LOG_FILE = "error_log.csv";
     private static final String[] ERROR_HEADERS = { "Timestamp", "Error Message", "Stack Trace" };
 
-    public static void logError(Exception exception) {
+    public static void logError(Exception exception, boolean debug) {
         boolean fileExists = new java.io.File(ERROR_LOG_FILE).exists();
+        if (debug){
+            exception.printStackTrace();
+        }
         try (CSVWriter writer = new CSVWriter(new FileWriter(ERROR_LOG_FILE, true))) {
             // Write header if file does not exist
             if (!fileExists) {

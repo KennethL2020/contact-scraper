@@ -17,14 +17,14 @@ public class Main {
     public static final boolean KEEP_TIME = true;
     public static final String[] HEADERS = { "Name", "Link", "Industry", "Location", "Followers", "Phone", "Email", "Website", "Address" };
     public static final String OUTPUT_PATH = "company_log.csv";
-    public static final String INPUT_PATH = "C:\\Users\\kenne\\OneDrive\\Desktop\\shared\\Projects\\Job Agent\\Iteration 2\\potential partners\\priority\\automotive_repair.csv";
+    public static final String INPUT_PATH = "C:\\Users\\kenne\\OneDrive\\Desktop\\shared\\Projects\\Job Agent\\Iteration 2\\potential partners\\priority\\architecture-interior_design.csv";
     public static final String LINKEDIN_COOKIES = "C:\\Users\\kenne\\OneDrive\\Desktop\\shared\\Projects\\Job Agent\\Iteration 2\\potential partners\\contact-scraper\\src\\main\\resources\\exported-cookies.json";
     public static final String WEBDRIVER_PATH = "C:\\Users\\kenne\\OneDrive\\Desktop\\shared\\Projects\\Job Agent" +
             "\\Iteration 2\\potential partners\\contact-scraper\\chromedriver-win64\\chromedriver-win64\\chromedriver.exe";
 
     public static void main(String[] args){
         List<Company> companies = readCompaniesFromCsv(INPUT_PATH);
-        int numberOfThreads = 1; // Number of threads you want to use
+        int numberOfThreads = 3; // Number of threads you want to use
         int companiesPerThread = (int) Math.ceil((double) companies.size() / numberOfThreads);
 
         ExecutorService executor = Executors.newFixedThreadPool(numberOfThreads);

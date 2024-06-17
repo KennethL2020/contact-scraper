@@ -32,6 +32,7 @@ public class DataCrawler implements Runnable{
     private static final Object lock = new Object();
     private WebDriver driver;
     private List<Company> companies;
+    private int fails = 0;
     public DataCrawler(List<Company> companies){
         System.setProperty("webdriver.chrome.driver", Main.WEBDRIVER_PATH);
         this.companies = companies;
@@ -47,6 +48,10 @@ public class DataCrawler implements Runnable{
         driver.manage().window().setSize(new Dimension(1440, 900));
         System.out.println(driver.manage().window().getSize());
         for (Company company : companies) {
+            if (fails > 10) {
+                System.out.println("Please renew cookies");
+                break;
+            }
             long startTime = System.nanoTime();
             crawl(company);
             long endTime = System.nanoTime();
@@ -86,6 +91,14 @@ public class DataCrawler implements Runnable{
                 driver.get(socialMediaLink + "about/");
             } catch (TimeoutException e){
                 ErrorLogger.logError(e, Main.DEBUG);
+                System.out.println("Logged out");
+                fails ++;
+                throw new LoggedOutException();
+            }
+            if (!driver.getCurrentUrl().equals(socialMediaLink + "about/")){
+                System.out.println("Logged out");
+                fails ++;
+                throw new LoggedOutException();
             }
             Thread.sleep(2000);
             try {

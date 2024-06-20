@@ -1,8 +1,17 @@
 package org.omnisearch.cs;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import org.openqa.selenium.Cookie;
+import org.openqa.selenium.WebDriver;
+
+import java.io.FileReader;
+import java.lang.reflect.Type;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -114,5 +123,26 @@ public class Util {
     public static String normalize(String str) {
         // Remove all spaces and punctuations, and convert to lowercase
         return str.replaceAll("[\\s\\p{Punct}]", "").toLowerCase();
+    }
+
+    public static void importCookies(WebDriver driver, String filePath) {
+        try {
+            Gson gson = new Gson();
+            FileReader reader = new FileReader(filePath);
+            Type cookieType = new TypeToken<List<Map<String, Object>>>() {}.getType();
+            List<Map<String, Object>> cookies = gson.fromJson(reader, cookieType);
+            reader.close();
+
+            for (Map<String, Object> cookieMap : cookies) {
+                Cookie cookie = new Cookie.Builder((String) cookieMap.get("name"), (String) cookieMap.get("value"))
+                        .domain((String) cookieMap.get("domain"))
+                        .path((String) cookieMap.get("path"))
+                        .isSecure((Boolean) cookieMap.get("secure"))
+                        .build();
+                driver.manage().addCookie(cookie);
+            }
+        } catch (Exception e) {
+            ErrorLogger.logError(e, Main.DEBUG);
+        }
     }
 }

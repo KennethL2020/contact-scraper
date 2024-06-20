@@ -83,7 +83,7 @@ public class DataCrawler implements Runnable{
                 ErrorLogger.logError(e, Main.DEBUG);
             }
             try {
-                importCookies(Main.LINKEDIN_COOKIES);
+                Util.importCookies(driver, Main.LINKEDIN_COOKIES);
             } catch (Exception e){
                 ErrorLogger.logError(e, Main.DEBUG);
             }
@@ -370,27 +370,6 @@ public class DataCrawler implements Runnable{
         } catch (Exception e) {
             ErrorLogger.logError(e, Main.DEBUG);
             return "";
-        }
-    }
-
-    private void importCookies(String filePath) {
-        try {
-            Gson gson = new Gson();
-            FileReader reader = new FileReader(filePath);
-            Type cookieType = new TypeToken<List<Map<String, Object>>>() {}.getType();
-            List<Map<String, Object>> cookies = gson.fromJson(reader, cookieType);
-            reader.close();
-
-            for (Map<String, Object> cookieMap : cookies) {
-                Cookie cookie = new Cookie.Builder((String) cookieMap.get("name"), (String) cookieMap.get("value"))
-                        .domain((String) cookieMap.get("domain"))
-                        .path((String) cookieMap.get("path"))
-                        .isSecure((Boolean) cookieMap.get("secure"))
-                        .build();
-                driver.manage().addCookie(cookie);
-            }
-        } catch (Exception e) {
-            ErrorLogger.logError(e, Main.DEBUG);
         }
     }
 

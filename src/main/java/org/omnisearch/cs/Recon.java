@@ -81,8 +81,8 @@ public class Recon {
             "});\n" +
             "\n" +
             "return csvContent;\n";
-    private static final String URL = "https://www.linkedin.com/search/results/companies/?companyHqGeo=%5B%22104769905%22%5D&companySize=%5B%22B%22%5D&industryCompanyVertical=%5B%223102%22%2C%224%22%5D&keywords=";
-    private static final String URL_SUFFIX = "&origin=FACETED_SEARCH&sid=dHh";
+    private static final String URL = "https://www.linkedin.com/search/results/companies/?companyHqGeo=%5B%22104769905%22%5D&companySize=%5B%22B%22%5D&industryCompanyVertical=%5B%221862%22%5D&origin=FACETED_SEARCH&sid=ao*";
+    private static final String URL_SUFFIX = "";
     private static final boolean COMPLETE = true;
     public static void main(String args[]){
         // Set the path to your WebDriver executable (e.g., chromedriver)
@@ -211,7 +211,7 @@ public class Recon {
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(Main.RECON_PATH, true))) {
             // Write header if file does not exist
             if (!fileExists) {
-                writer.write(String.join(",",Main.HEADERS));
+                writer.write(String.join(",",Main.HEADERS) + "\n");
             }
             writer.write(result + "\n");
         } catch (IOException e) {

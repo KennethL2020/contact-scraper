@@ -13,10 +13,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 public class Main {
-    public static final boolean DEBUG = false;
+    public static final boolean DEBUG = true;
     public static final boolean KEEP_TIME = true;
     public static final String[] HEADERS = { "Name", "Link", "Industry", "Location", "Followers", "Phone", "Email", "Website", "Address" };
     public static final String OUTPUT_PATH = "company_log.csv";
+    public static final String RECON_PATH = "recon.csv";
     public static final String INPUT_PATH = "C:\\Users\\kenne\\OneDrive\\Desktop\\shared\\Projects\\Job Agent\\Iteration 2\\potential partners\\priority\\marketing.csv";
     public static final String LINKEDIN_COOKIES = "C:\\Users\\kenne\\OneDrive\\Desktop\\shared\\Projects\\Job Agent\\Iteration 2\\potential partners\\contact-scraper\\src\\main\\resources\\exported-cookies.json";
     public static final String WEBDRIVER_PATH = "C:\\Users\\kenne\\OneDrive\\Desktop\\shared\\Projects\\Job Agent" +

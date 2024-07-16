@@ -100,7 +100,7 @@ public class Recon {
             ErrorLogger.logError(e, Main.DEBUG);
         }
         try {
-            Util.importCookies(driver, Main.LINKEDIN_COOKIES);
+            //Util.importCookies(driver, Main.LINKEDIN_COOKIES);
         } catch (Exception e){
             ErrorLogger.logError(e, Main.DEBUG);
         }

@@ -1,18 +1,21 @@
 package org.omnisearch.cs;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.google.gson.reflect.TypeToken;
 import org.openqa.selenium.Cookie;
 import org.openqa.selenium.WebDriver;
 
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileReader;
+import java.io.IOException;
 import java.lang.reflect.Type;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -143,6 +146,48 @@ public class Util {
             }
         } catch (Exception e) {
             ErrorLogger.logError(e, Main.DEBUG);
+        }
+    }
+
+    public static void importAndModifyCookies(WebDriver driver, String filePath) {
+        File file = new File(filePath);
+        Gson gson = new Gson();
+
+        try (FileReader reader = new FileReader(file)) {
+            // Parse the JSON file
+            JsonArray cookieArray = JsonParser.parseReader(reader).getAsJsonArray();
+
+            // Iterate through the cookies
+            for (int i = 0; i < cookieArray.size(); i++) {
+                JsonObject cookieObject = cookieArray.get(i).getAsJsonObject();
+
+                // Extract cookie attributes
+                String name = cookieObject.get("name").getAsString();
+                String value = cookieObject.get("value").getAsString();
+                String domain = cookieObject.get("domain").getAsString();
+                String path = cookieObject.get("path").getAsString();
+                boolean isSecure = cookieObject.get("secure").getAsBoolean();
+                boolean isHttpOnly = cookieObject.get("httpOnly").getAsBoolean();
+
+                // Set the expiration time to one week in the future
+                Calendar calendar = Calendar.getInstance();
+                calendar.add(Calendar.MONTH, 2);
+                Date expiry = calendar.getTime();
+
+                // Create the cookie
+                Cookie cookie = new Cookie.Builder(name, value)
+                        .domain(domain)
+                        .path(path)
+                        .isSecure(isSecure)
+                        .isHttpOnly(isHttpOnly)
+                        .expiresOn(expiry)
+                        .build();
+
+                // Add the cookie to the driver
+                driver.manage().addCookie(cookie);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 }

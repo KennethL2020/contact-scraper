@@ -41,6 +41,9 @@ public class DataCrawler implements Runnable{
             options.addArguments("--headless");
         options.addArguments("--remote-allow-origins=*");
         options.addArguments("--start-maximized");
+        options.addArguments("user-data-dir="+Main.USER_DATA);
+        options.addArguments("user-agent="+Main.USER_AGENT);
+        options.addArguments("--profile-directory="+Main.PROFILE);
         driver = new ChromeDriver(options);
         driver.manage().timeouts().pageLoadTimeout(20, TimeUnit.SECONDS); // 10 seconds timeout
     }
@@ -61,7 +64,23 @@ public class DataCrawler implements Runnable{
         }
         driver.quit();
     }
+    private void addCookiesThroughString(WebDriver driver, String allCookies){
+        String[] cookiesArray = allCookies.split("; ");
 
+        // Iterate over each cookie string
+        for (String cookieString : cookiesArray) {
+            // Split the cookie string into name and value
+            String[] cookieNameValue = cookieString.split("=", 2);
+            if (cookieNameValue.length == 2) {
+                String name = cookieNameValue[0];
+                String value = cookieNameValue[1].replace("\"", ""); // Remove any surrounding quotes
+
+                // Create a new cookie and add it to the driver
+                Cookie cookie = new Cookie(name, value);
+                driver.manage().addCookie(cookie);
+            }
+        }
+    }
     private void crawl(Company company){
         String companyName = company.getName();
         String socialMediaLink = company.getLink();
@@ -75,6 +94,8 @@ public class DataCrawler implements Runnable{
 
         String phonesFromWebsite = "";
         String emailsFromWebsite = "";
+
+        boolean writeToFile = true;
         try {
             // Step 1: Navigate to the company's social media /about/ page
             try {
@@ -83,7 +104,9 @@ public class DataCrawler implements Runnable{
                 ErrorLogger.logError(e, Main.DEBUG);
             }
             try {
-                Util.importCookies(driver, Main.LINKEDIN_COOKIES);
+                //Util.importCookies(driver, Main.LINKEDIN_COOKIES);
+                //Util.importCookies(driver, Main.GOOGLE_COOKIES);
+                //addCookiesThroughString(driver, Main.ADDITIONAL_COOKIES);
             } catch (Exception e){
                 ErrorLogger.logError(e, Main.DEBUG);
             }
@@ -259,22 +282,26 @@ public class DataCrawler implements Runnable{
                 ErrorLogger.logError(e, Main.DEBUG);
             }
 
+        } catch (LoggedOutException e){
+            writeToFile = false;
         } catch (Exception e) {
             ErrorLogger.logError(e, Main.DEBUG);
         } finally {
-            phoneNumbers += phonesFromWebsite;
-            emailAddresses += emailsFromWebsite;
-            company.setEmailAddresses(Util.removeDuplicates(emailAddresses));
-            company.setPhoneNumbers(Util.removeDuplicates(Util.removeInvalidNumbers(phoneNumbers)));
-            company.setWebsites(Util.removeDuplicates(websiteUrl));
-            company.setAddresses(Util.removeDuplicates(addresses));
-            System.out.println(String.format("\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\""
-                    , company.getName(), company.getLink(), company.getIndustry()
-                    , company.getLocation(), company.getFollowers()
-                    , company.getPhoneNumbers(), company.getEmailAddresses()
-                    , company.getWebsites(), company.getAddresses()));
-            synchronized (lock) {
-                logCompany(company);
+            if (writeToFile) {
+                phoneNumbers += phonesFromWebsite;
+                emailAddresses += emailsFromWebsite;
+                company.setEmailAddresses(Util.removeDuplicates(emailAddresses));
+                company.setPhoneNumbers(Util.removeDuplicates(Util.removeInvalidNumbers(phoneNumbers)));
+                company.setWebsites(Util.removeDuplicates(websiteUrl));
+                company.setAddresses(Util.removeDuplicates(addresses));
+                System.out.println(String.format("\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\""
+                        , company.getName(), company.getLink(), company.getIndustry()
+                        , company.getLocation(), company.getFollowers()
+                        , company.getPhoneNumbers(), company.getEmailAddresses()
+                        , company.getWebsites(), company.getAddresses()));
+                synchronized (lock) {
+                    logCompany(company);
+                }
             }
         }
     }

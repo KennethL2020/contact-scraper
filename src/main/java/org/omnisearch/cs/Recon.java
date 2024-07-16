@@ -16,7 +16,7 @@ import java.time.Duration;
 import java.util.List;
 
 public class Recon {
-    public static final String js = "let csvContent = \"Text,Link,Industry,Location,Followers\\n\";\n" +
+    public static final String js = "let csvContent = \"\";\n" +
             "\n" +
             "[...document.querySelectorAll('li.reusable-search__result-container')].forEach(li => {\n" +
             "    let aElement = li.querySelector('a.app-aware-link:not(.scale-down)');\n" +
@@ -81,9 +81,9 @@ public class Recon {
             "});\n" +
             "\n" +
             "return csvContent;\n";
-    private static final String URL = "https://www.linkedin.com/search/results/companies/?companyHqGeo=%5B%22104769905%22%5D&companySize=%5B%22B%22%5D&industryCompanyVertical=%5B%221862%22%5D&origin=FACETED_SEARCH&sid=ao*";
-    private static final String URL_SUFFIX = "";
-    private static final boolean COMPLETE = true;
+    private static final String URL = "https://www.linkedin.com/search/results/companies/?companyHqGeo=%5B%22104769905%22%5D&companySize=%5B%22B%22%5D&industryCompanyVertical=%5B%22126%22%5D&keywords=";
+    private static final String URL_SUFFIX = "&origin=GLOBAL_SEARCH_HEADER&sid=M%2C1";
+    private static final boolean COMPLETE = false;
     public static void main(String args[]){
         // Set the path to your WebDriver executable (e.g., chromedriver)
         System.setProperty("webdriver.chrome.driver", Main.WEBDRIVER_PATH);
@@ -125,7 +125,12 @@ public class Recon {
                 } catch (TimeoutException | InterruptedException e){
                     ErrorLogger.logError(e, Main.DEBUG);
                 }
-                int pages = findLargestPaginationValue(driver);
+                int pages = 1;
+                try {
+                    pages = findLargestPaginationValue(driver);
+                } catch (Exception e){
+                    ErrorLogger.logError(e, Main.DEBUG);
+                }
                 for (int i = 1; i <= pages; i++){
                     url = URL + letter + "&page=" + i + URL_SUFFIX;
                     driver.get(url);

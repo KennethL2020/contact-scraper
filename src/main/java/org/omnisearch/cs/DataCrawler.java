@@ -37,13 +37,14 @@ public class DataCrawler implements Runnable{
         System.setProperty("webdriver.chrome.driver", Main.WEBDRIVER_PATH);
         this.companies = companies;
         ChromeOptions options = new ChromeOptions();
-        if (!Main.DEBUG)
-            options.addArguments("--headless");
         options.addArguments("--remote-allow-origins=*");
         options.addArguments("--start-maximized");
-        options.addArguments("user-data-dir="+Main.USER_DATA);
-        options.addArguments("user-agent="+Main.USER_AGENT);
-        options.addArguments("--profile-directory="+Main.PROFILE);
+        options.addArguments("--no-sandbox");
+        options.addArguments("--user-data-dir="+Main.USER_DATA);
+        options.addArguments("--user-agent="+Main.USER_AGENT);
+        //options.addArguments("--profile-directory="+Main.PROFILE);
+        if (!Main.DEBUG)
+            options.addArguments("--headless");
         driver = new ChromeDriver(options);
         driver.manage().timeouts().pageLoadTimeout(20, TimeUnit.SECONDS); // 10 seconds timeout
     }

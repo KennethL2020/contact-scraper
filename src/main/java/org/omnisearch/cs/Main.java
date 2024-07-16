@@ -13,7 +13,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 public class Main {
-    public static final boolean DEBUG = true;
+    public static final boolean DEBUG = false;
     public static final boolean KEEP_TIME = true;
     public static final String[] HEADERS = { "Name", "Link", "Industry", "Location", "Followers", "Phone", "Email", "Website", "Address" };
     public static final String OUTPUT_PATH = "company_log.csv";
@@ -27,7 +27,7 @@ public class Main {
 
     public static void main(String[] args){
         List<Company> companies = readCompaniesFromCsv(INPUT_PATH);
-        int numberOfThreads = 1; // Number of threads you want to use
+        int numberOfThreads = 3; // Number of threads you want to use
         int companiesPerThread = (int) Math.ceil((double) companies.size() / numberOfThreads);
 
         ExecutorService executor = Executors.newFixedThreadPool(numberOfThreads);

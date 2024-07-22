@@ -13,15 +13,17 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 public class Main {
-    public static final boolean DEBUG = false;
+    public static final boolean DEBUG = true;
     public static final boolean KEEP_TIME = true;
     public static final String[] HEADERS = { "Name", "Link", "Industry", "Location", "Followers", "Phone", "Email", "Website", "Address" };
+    public static final String CHROME_PATH = "C:\\Users\\kenne\\OneDrive\\Desktop\\shared\\Projects\\Job Agent\\Iteration 2\\potential partners\\contact-scraper\\chrome-win64\\chrome-win64\\chrome.exe";
     public static final String OUTPUT_PATH = "company_log.csv";
     public static final String RECON_PATH = "recon.csv";
-    public static final String INPUT_PATH = "C:\\Users\\kenne\\OneDrive\\Desktop\\shared\\Projects\\Job Agent\\Iteration 2\\potential partners\\priority\\electronics_manufacturing\\file2.csv";
+    public static final String INPUT_PATH = "C:\\Users\\kenne\\OneDrive\\Desktop\\shared\\Projects\\Job Agent\\Iteration 2\\potential partners\\priority\\electronics_manufacturing\\file0.csv";
     public static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0";
-    public static final String USER_DATA = "C:\\Users\\kenne\\AppData\\Local\\Google\\Chrome\\User Data";
-    public static final String PROFILE = "Profile 4";
+    public static final String USER_DATA = "\\Chrome for Testing\\User Data\\";
+    public static final String USER_DATA_PREFIX = "C:\\Users\\kenne\\AppData\\Local\\Google\\Threads\\";
+    public static final String PROFILE = "Default";
     public static final String WEBDRIVER_PATH = "C:\\Users\\kenne\\OneDrive\\Desktop\\shared\\Projects\\Job Agent" +
             "\\Iteration 2\\potential partners\\contact-scraper\\chromedriver-win64\\chromedriver-win64\\chromedriver.exe";
 
@@ -37,7 +39,7 @@ public class Main {
             int end = Math.min(start + companiesPerThread, companies.size());
 
             List<Company> sublist = companies.subList(start, end);
-            DataCrawler crawler = new DataCrawler(sublist);
+            DataCrawler crawler = new DataCrawler(sublist, i+1);
 
             executor.submit(crawler);
         }

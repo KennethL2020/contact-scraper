@@ -1,24 +1,21 @@
 package org.omnisearch.cs;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
-import com.opencsv.CSVReader;
 import com.opencsv.CSVWriter;
-import com.opencsv.exceptions.CsvValidationException;
 
 import org.omnisearch.cs.dto.Company;
 import org.openqa.selenium.*;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.interactions.Actions;
+import org.openqa.selenium.remote.DesiredCapabilities;
+import org.openqa.selenium.remote.RemoteWebDriver;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
 import java.io.File;
-import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.lang.reflect.Type;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.time.Duration;
 import java.util.*;
@@ -33,23 +30,81 @@ public class DataCrawler implements Runnable{
     private WebDriver driver;
     private List<Company> companies;
     private int fails = 0;
-    public DataCrawler(List<Company> companies){
+    private int threadID;
+    public DataCrawler(List<Company> companies, int threadID){
+        this.threadID = threadID;
         System.setProperty("webdriver.chrome.driver", Main.WEBDRIVER_PATH);
         this.companies = companies;
+        try {
+            initSeleniumDriver();
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+    public ChromeOptions getChromeOptions() {
         ChromeOptions options = new ChromeOptions();
         options.addArguments("--remote-allow-origins=*");
         options.addArguments("--start-maximized");
-        options.addArguments("--no-sandbox");
-        options.addArguments("--user-data-dir="+Main.USER_DATA);
+        //options.addArguments("--no-sandbox");
+        options.addArguments("--user-data-dir="+Main.USER_DATA_PREFIX+this.threadID+Main.USER_DATA);
+        //options.addArguments("--remote-debugging-port=0");
         options.addArguments("--user-agent="+Main.USER_AGENT);
-        //options.addArguments("--profile-directory="+Main.PROFILE);
+        options.addArguments("--disable-features=SharedStorageWorklet");
+        options.setBinary(Main.CHROME_PATH);
         if (!Main.DEBUG)
             options.addArguments("--headless");
+        else
+            options.addArguments("--profile-directory="+Main.PROFILE);
+        return options;
+    }
+    public void initSeleniumDriver() throws MalformedURLException {
+        // Quit the old driver if it exists
+        if (driver != null) {
+            driver.quit();
+        }
+        // Set the system property for ChromeDriver
+        System.setProperty("webdriver.chrome.driver", Main.WEBDRIVER_PATH);
+
+        // Get the ChromeOptions
+        ChromeOptions options = getChromeOptions();
+        // Initialize WebDriver with options
         driver = new ChromeDriver(options);
-        driver.manage().timeouts().pageLoadTimeout(20, TimeUnit.SECONDS); // 10 seconds timeout
+
+        // Close all existing windows
+        for (String handle : driver.getWindowHandles()) {
+            driver.switchTo().window(handle);
+            driver.close();
+        }
+
+        // Start a new WebDriver session with the same options
+        driver = new ChromeDriver(options);
+
+        driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(10)); // 10 seconds timeout
+        driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(1));
+        driver.manage().window().setSize(new Dimension(1440, 900));
+    }
+    public void resetSeleniumDriver() {
+        // Check if the driver is null, initialize if necessary
+        try {
+            if (driver == null) {
+                initSeleniumDriver();
+            } else {
+                // Close all existing windows except one
+                String originalHandle = driver.getWindowHandle();
+                for (String handle : driver.getWindowHandles()) {
+                    if (!handle.equals(originalHandle)) {
+                        driver.switchTo().window(handle);
+                        driver.close();
+                    }
+                }
+                driver.switchTo().window(originalHandle);
+            }
+        }catch (Exception e){
+            resetSeleniumDriver();
+            ErrorLogger.logError(e, Main.DEBUG);
+        }
     }
     public void run() {
-        driver.manage().window().setSize(new Dimension(1440, 900));
         System.out.println(driver.manage().window().getSize());
         for (Company company : companies) {
             if (fails > 10) {
@@ -57,6 +112,7 @@ public class DataCrawler implements Runnable{
                 break;
             }
             long startTime = System.nanoTime();
+            resetSeleniumDriver();
             crawl(company);
             long endTime = System.nanoTime();
             long duration = endTime - startTime; // in nanoseconds
@@ -65,23 +121,7 @@ public class DataCrawler implements Runnable{
         }
         driver.quit();
     }
-    private void addCookiesThroughString(WebDriver driver, String allCookies){
-        String[] cookiesArray = allCookies.split("; ");
 
-        // Iterate over each cookie string
-        for (String cookieString : cookiesArray) {
-            // Split the cookie string into name and value
-            String[] cookieNameValue = cookieString.split("=", 2);
-            if (cookieNameValue.length == 2) {
-                String name = cookieNameValue[0];
-                String value = cookieNameValue[1].replace("\"", ""); // Remove any surrounding quotes
-
-                // Create a new cookie and add it to the driver
-                Cookie cookie = new Cookie(name, value);
-                driver.manage().addCookie(cookie);
-            }
-        }
-    }
     private void crawl(Company company){
         String companyName = company.getName();
         String socialMediaLink = company.getLink();
@@ -119,11 +159,6 @@ public class DataCrawler implements Runnable{
                 fails ++;
                 throw new LoggedOutException();
             }
-            if (!driver.getCurrentUrl().equals(socialMediaLink + "about/")){
-                System.out.println("Logged out");
-                fails ++;
-                throw new LoggedOutException();
-            }
             Thread.sleep(2000);
             try {
                 scrollToBottom();
@@ -134,7 +169,7 @@ public class DataCrawler implements Runnable{
 
             // Step 2: Extract website URL and phone number
             try {
-                WebElement websiteElement = driver.findElement(By.xpath("//dt[contains(@class, 'mb1 text-heading-medium') and text()='Website']/following-sibling::dd//a"));
+                WebElement websiteElement = driver.findElement(By.xpath("//dt[contains(@class, 'mb1') and h3[text()='Website']]/following-sibling::dd//a"));
                 websiteUrl = websiteElement.getAttribute("href");
             } catch (Exception e) {
                 googleSearch(companyName + " " + industry + " " + location);
@@ -173,15 +208,26 @@ public class DataCrawler implements Runnable{
                         List<WebElement> pathElements = locationElement.findElements(By.tagName("path"));
                         List<String> ariaLabels = pathElements.stream().map(element -> element.getAttribute("aria-label")).collect(Collectors.toList());
                         for (WebElement pathElement : pathElements) {
-                            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+                            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(3));
+                            String xpath = "";
                             if (index > 0) {
-                                wait.until(ExpectedConditions.stalenessOf(pathElement));
-                                String xpath = String.format("//*[contains(@aria-label, '%s')]", ariaLabels.get(index));
+                                try {
+                                    wait.until(ExpectedConditions.stalenessOf(pathElement));
+                                } catch (Exception e) {
+                                    ErrorLogger.logError(e, Main.DEBUG);
+                                }
+                                xpath = String.format("//*[contains(@aria-label, '%s')]", ariaLabels.get(index));
                                 wait.until(ExpectedConditions.presenceOfElementLocated(By.xpath(xpath)));
                                 pathElement = driver.findElement(By.xpath(xpath));
                             }
                             if (pathElement.getAttribute("aria-label").contains("CompanyLocations")) {
-                                pathElement.click();
+                                try {
+                                    if (!xpath.isEmpty())
+                                        pathElement = new WebDriverWait(driver, Duration.ofSeconds(3)).until(ExpectedConditions.elementToBeClickable(By.xpath(xpath)));
+                                        pathElement.click();
+                                } catch (Exception e) {
+                                    continue;
+                                }
                                 //Thread.sleep(500);
                                 List<WebElement> addressElements = driver.findElements(By.xpath("//div[contains(@class, 'org-location-card')]//p"));
                                 for (WebElement addressElement : addressElements) {
@@ -216,7 +262,7 @@ public class DataCrawler implements Runnable{
                     } catch (TimeoutException e){
                         ErrorLogger.logError(e, Main.DEBUG);
                     }
-                    String pageSource = driver.getPageSource();
+                    String pageSource = driver.findElement(By.tagName("body")).getText();
                     emailsFromWebsite += extractEmails(pageSource);
                     phonesFromWebsite += extractVisiblePhoneNumber(pageSource);
                     List<WebElement> websiteLinks = driver.findElements(By.xpath("//a[contains(@href, websiteUrl)]"));
@@ -252,7 +298,7 @@ public class DataCrawler implements Runnable{
                             } catch (TimeoutException e){
                                 ErrorLogger.logError(e, Main.DEBUG);
                             }
-                            pageSource = driver.getPageSource();
+                            pageSource = driver.findElement(By.tagName("body")).getText();
                             emailsFromWebsite += extractEmails(pageSource);
                             phonesFromWebsite += extractVisiblePhoneNumber(pageSource);
                             driver.close();
@@ -269,13 +315,13 @@ public class DataCrawler implements Runnable{
             try {
                 googleSearch(companyName + " " + industry + " " + location);
                 addresses += findAddressFromGoogleSearch();
-                emailsFromWebsite += extractEmails(driver.getPageSource());
+                emailsFromWebsite += extractEmails(driver.findElement(By.tagName("body")).getText());
                 phonesFromWebsite += findPhNoFromGoogleSearch();
                 phonesFromWebsite += findPhNosFromGoogleSearch();
                 driver.close();
                 driver.switchTo().window(originalTabHandle);
                 bingSearch(companyName + " " + industry + " " + location);
-                emailsFromWebsite += extractEmails(driver.getPageSource());
+                emailsFromWebsite += extractEmails(driver.findElement(By.tagName("body")).getText());
                 phonesFromWebsite += findPhNoFromBingSearch();
                 driver.close();
                 driver.switchTo().window(originalTabHandle);
@@ -439,7 +485,7 @@ public class DataCrawler implements Runnable{
         StringBuilder phones = new StringBuilder();
         while (matcher.find()) {
             String match = matcher.group();
-            if (Util.isValidLength(match) && !Util.isDate(match) && isElementVisible(match))
+            if (Util.isValidLength(match) && !Util.isDate(match))
                 phones.append(match).append("; ");
         }
         return phones.toString();
@@ -455,29 +501,6 @@ public class DataCrawler implements Runnable{
                 emails.append(match).append("; ");
         }
         return emails.toString();
-    }
-
-    private boolean isElementVisible(String s){
-        // Find all elements that contain the given string
-        List<WebElement> elements = driver.findElements(By.xpath("//*[contains(text(), '" + s + "')]"));
-
-        // Check if any of the elements are visible
-        for (WebElement element : elements) {
-            if (element.isDisplayed()) {
-                return true;
-            }
-        }
-
-        elements = driver.findElements(By.xpath("//*[text()[contains(.,'" + s + "')]]"));
-
-        // Check if any of the elements are visible
-        for (WebElement element : elements) {
-            if (element.isDisplayed()) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
 }

@@ -102,7 +102,31 @@ public class Util {
 
         return result.toString();
     }
+    public static boolean compareLastPart(String url1, String url2) {
+        try {
+            URL u1 = new URL(url1);
+            URL u2 = new URL(url2);
 
+            String path1 = u1.getPath();
+            String path2 = u2.getPath();
+
+            // Remove trailing slashes if present
+            if (path1.endsWith("/")) {
+                path1 = path1.substring(0, path1.length() - 1);
+            }
+            if (path2.endsWith("/")) {
+                path2 = path2.substring(0, path2.length() - 1);
+            }
+
+            String lastPart1 = path1.substring(path1.lastIndexOf('/') + 1);
+            String lastPart2 = path2.substring(path2.lastIndexOf('/') + 1);
+
+            return lastPart1.equals(lastPart2);
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
     public static String removeInvalidNumbers(String input) {
         // Split the input string by semicolon
         String[] substrings = input.split(";");
@@ -146,48 +170,6 @@ public class Util {
             }
         } catch (Exception e) {
             ErrorLogger.logError(e, Main.DEBUG);
-        }
-    }
-
-    public static void importAndModifyCookies(WebDriver driver, String filePath) {
-        File file = new File(filePath);
-        Gson gson = new Gson();
-
-        try (FileReader reader = new FileReader(file)) {
-            // Parse the JSON file
-            JsonArray cookieArray = JsonParser.parseReader(reader).getAsJsonArray();
-
-            // Iterate through the cookies
-            for (int i = 0; i < cookieArray.size(); i++) {
-                JsonObject cookieObject = cookieArray.get(i).getAsJsonObject();
-
-                // Extract cookie attributes
-                String name = cookieObject.get("name").getAsString();
-                String value = cookieObject.get("value").getAsString();
-                String domain = cookieObject.get("domain").getAsString();
-                String path = cookieObject.get("path").getAsString();
-                boolean isSecure = cookieObject.get("secure").getAsBoolean();
-                boolean isHttpOnly = cookieObject.get("httpOnly").getAsBoolean();
-
-                // Set the expiration time to one week in the future
-                Calendar calendar = Calendar.getInstance();
-                calendar.add(Calendar.MONTH, 2);
-                Date expiry = calendar.getTime();
-
-                // Create the cookie
-                Cookie cookie = new Cookie.Builder(name, value)
-                        .domain(domain)
-                        .path(path)
-                        .isSecure(isSecure)
-                        .isHttpOnly(isHttpOnly)
-                        .expiresOn(expiry)
-                        .build();
-
-                // Add the cookie to the driver
-                driver.manage().addCookie(cookie);
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
         }
     }
 }
